@@ -1,0 +1,658 @@
+---
+title: "Biostatistics - Bioinformatics for Computational Genomics"
+subtitle: "Final Examination Template"
+author: "Chiara Simiele"
+date: "Academic Year 2025/2026"
+output:
+  html_document:
+    df_print: paged
+    toc: false
+    number_sections: false
+    theme: cosmo
+    highlight: tango
+  pdf_document:
+    fig_width: 5
+    fig_height: 4
+geometry: margin=2.5cm
+fontsize: 11pt
+editor_options:
+  chunk_output_type: console
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+<br>
+
+# Student Information
+
+| Field             | Information |
+|:------------------|:------------|
+| **Name**          | Chiara      |
+| **Surname**       | Simiele     |
+| **Student ID**    | 69894A      |
+| **Personal Code** | 10769665    |
+
+<br>
+
+------------------------------------------------------------------------
+
+# Instructions
+
+-   Answer **only the two assigned questions**
+-   Clearly justify all methodological choices
+-   Report relevant statistical results
+-   Provide biological and clinical interpretation of findings
+-   Include comments directly below each code chunk
+
+<br>
+
+------------------------------------------------------------------------
+
+# Initial Setup
+
+## 1. Load Required Libraries
+
+```{r}
+library(survival)
+library(survminer)
+library(dplyr)
+library(stats)
+```
+
+## 2. Load the Dataset
+
+```{r}
+endometriosis_copy <- read.csv("endometriosis_copy.csv")
+endometriosis_gene <- read.csv("endometriosis_gene.csv")
+endometriosis_meth <- read.csv("endometriosis_meth.csv")
+```
+
+------------------------------------------------------------------------
+
+## 3. Preliminary Data Inspection
+
+```{r}
+str(endometriosis_copy)    #312 rows e 24794 columns
+str(endometriosis_gene)
+str(endometriosis_meth)
+
+head(endometriosis_copy, 1)
+head(endometriosis_gene, 1)
+head(endometriosis_meth, 1)
+```
+
+<br>
+
+------------------------------------------------------------------------
+
+# Question 1
+
+## Assigned Exercise
+
+\*\*Question 1: Investigate the association between disease stage and
+diagnosis group, and between diagnosis group and a molecular biomarker:
+
+-   disease_stage (I, II, III, IV) and diagnosis_group (Endometriosis /
+    Atypical endometriosis / EAOC).
+-   diagnosis_group and DVL1 copy number categorized as copy number loss
+    (\<0) and normal/gain (\>=0).
+
+1.  Create contingency tables for both associations.
+
+2.  Test for both associations using chi-squared test and Fisher’s exact
+    test. Compare the results and explain when each test is appropriate.
+    For the following analyses, recategorize the diagnosis as EAOC
+    versus non-EAOC (Endometriosis + Atypical Endometriosis).
+
+3.  Calculate odds ratio (with 95% confidence intervals) comparing
+    disease stages using Stage I as the reference category, for the odds
+    of belonging to the EAOC group.
+
+4.  Apply Yates’ continuity correction to the 2x2 contingency table
+    obtained by comparing advanced disease stages (III-IV) versus early
+    disease stages (I, II) with respect to EAOC status (EAOC vs
+    non-EAOC).\*\*
+
+------------------------------------------------------------------------
+
+## Step 1 and 2
+
+```{r}
+
+# 1. Create DVL1 categorized variable from copy number data
+# Assuming DVL1 column name in endometriosis_copy dataset is cnv_DVL1
+endometriosis_copy$dvl1_cat <- factor(
+  ifelse(endometriosis_copy$cnv_DVL1 < 0, "Loss (<0)", "Normal/Gain (>=0)")
+)
+
+
+# 2. Contingency Table: disease_stage vs diagnosis_group
+table_stage_diag <- table(endometriosis_copy$disease_stage, endometriosis_copy$diagnosis_group)
+print(table_stage_diag)
+
+# Tests for Association 1
+chisq.test(table_stage_diag)
+fisher.test(table_stage_diag, simulate.p.value = TRUE)
+
+# 3. Contingency Table: diagnosis_group vs DVL1 Copy Number
+table_dvl1_diag <- table(endometriosis_copy$diagnosis_group, endometriosis_copy$dvl1_cat)
+print(table_dvl1_diag)
+
+# Tests for Association 2
+chisq.test(table_dvl1_diag)
+fisher.test(table_dvl1_diag)
+```
+
+### Interpretation
+
+Chi-squared Test vs Fisher's Exact Test: The Pearson's Chi-squared test
+evaluates whether an association exists between two categorical
+variables by comparing observed counts to expected counts. It relies on
+a large-sample asymptotic approximation, requiring (Cochran rule)
+expected cell counts to be $\ge 5$ in at least 80% of cells and all
+expected frequencies larger than 1. Fisher's Exact Test calculates exact
+hypergeometric probabilities without asymptotic assumptions, making it
+the preferred method when sample sizes are small or expected counts
+don't respect Cochran rules.
+
+Association Results:
+
+-   Association 1: disease_stage vs diagnosis_group. Pearson's
+    Chi-squared test yielded $\chi^2 = 99.336$
+    ($df = 6, p < 2.2 \times 10^{-16}$). Fisher's Exact Test (with Monte
+    Carlo simulation) confirmed a highly significant association
+    ($p = 0.0004998$). R issued a warning for the Chi-squared test
+    ("Chi-squared approximation may be incorrect") due to several
+    zero-count cells in the contingency table which make Chi-squared
+    Test unsuitable for a right evaluation of this case. Indeed when
+    expected counts in $>20\%$ of cells are $<5$, the asymptotic
+    assumption of the Chi-squared test is violated. Therefore, Fisher's
+    Exact Test is the appropriate and statistically robust method to
+    rely upon. It shows that there is a strong, statistically
+    significant association between disease stage and diagnosis group
+    ($p < 0.001$). Benign endometriosis and atypical endometriosis cases
+    are heavily concentrated in early stages (Stages I and II), whereas
+    malignant EAOC cases constitute 100% of the advanced stages (Stages
+    III and IV), highlighting a clear pattern of disease severity and
+    progression.
+-   Association 2: diagnosis_group vs DVL1 Copy Number Status
+    (dvl1_cat). Pearson's Chi-squared test resulted in $\chi^2 = 1.4246$
+    ($df = 2, p = 0.4905$), and Fisher's Exact Test yielded
+    $p = 0.4806$. Both tests yield concordant results and are valid
+    because all cells in the $3 \times 2$ contingency table have
+    sufficient sample sizes (minimum cell count of 11), well above the
+    standard threshold of 5 expected observations per cell. No
+    statistically significant association was observed between DVL1 copy
+    number loss and diagnostic categories ($p > 0.05$). The proportion
+    of DVL1 loss is comparable across all clinical groups (\~48% in
+    Atypical Endometriosis, \~42% in EAOC, and \~39% in Endometriosis).
+    This suggests that isolated DVL1 copy number loss is not a
+    standalone molecular driver of malignant transformation into EAOC in
+    this cohort.
+
+------------------------------------------------------------------------
+
+## Step 2
+
+```{r}
+# Recategorize diagnosis into binary status: EAOC vs non-EAOC
+endometriosis_copy$eaoc_status <- factor(
+  ifelse(endometriosis_copy$diagnosis_group == "EAOC", "EAOC", "non-EAOC")
+)
+
+# Set "Stage I" as the reference category for disease_stage
+endometriosis_copy$disease_stage <- relevel(
+  factor(endometriosis_copy$disease_stage), 
+  ref = "Stage I"  
+)
+
+
+# Fit binary logistic regression model to estimate odds of belonging to the EAOC group
+#To evaluate the association between disease progression and malignant transformation, a binary logistic regression model (glm with family = binomial) was fitted using eaoc_status as the binary response variable ($1 = \text{EAOC}$, $0 = \text{Non-EAOC}$) and disease_stage as the primary categorical/ordinal predictor.
+
+logit_model <- glm(
+  eaoc_status ~ disease_stage, 
+  data = endometriosis_copy, 
+  family = binomial
+)
+
+
+# Extract Odds Ratios (OR) and calculate 95% Confidence Intervals (CI)
+or_matrix <- exp(cbind(OR = coef(logit_model), confint(logit_model)))
+print(or_matrix)
+
+```
+
+### Interpretation
+
+Binary logistic regression evaluates the odds of having EAOC vs non-EAOC
+across disease stages, setting Stage I as the baseline reference
+category. Exponentiating the regression coefficients ($\text{e}^\beta$)
+yields Odds Ratios (OR) with $95\%$ Confidence Intervals (CI).
+Results:The model outputs extreme, unstable estimates for advanced
+stages ($\text{OR} \approx 0$, upper bounds reaching Inf or 2.3e+42, and
+NA for standard errors). This behavior occurs due to quasi-complete
+separation: as shown in the Step 1 contingency table, Stages III and IV
+contain exclusively EAOC cases ($100\%$) and zero non-EAOC cases.
+Because there are no non-EAOC controls in advanced stages, the maximum
+likelihood estimation (MLE) algorithm fails to converge properly for
+these parameters, leading to numerical instability and non-calculable
+confidence limits. While the uncorrected logistic regression model
+breaks down numerically due to empty cells, the underlying biological
+pattern is unambiguous: advanced disease stages (III and IV) are
+overwhelmingly associated with malignant EAOC status compared to Stage
+I.
+
+------------------------------------------------------------------------
+
+## Step 3
+
+```{r}
+# Create binary stage variable: Early (Stage I, Stage II) vs Advanced (Stage III, Stage IV)
+endometriosis_copy$stage_binary <- factor(
+  ifelse(endometriosis_copy$disease_stage %in% c("Stage I", "Stage II"), "Early (I-II)", "Advanced (III-IV)")
+) 
+
+# Create 2x2 Contingency Table (Stage Binary vs EAOC Status)
+table_2x2 <- table(endometriosis_copy$stage_binary, endometriosis_copy$eaoc_status)
+print("--- 2x2 Contingency Table ---")
+print(table_2x2)
+
+# Chi-squared test with Yates' continuity correction
+chisq_yates <- chisq.test(table_2x2, correct = TRUE)
+print("--- Chi-squared Test with Yates' Correction ---")
+print(chisq_yates)
+```
+
+### Interpretation
+
+*The* $2 \times 2$ contingency table yields 9 EAOC cases and 0 non-EAOC
+cases in the Advanced stage (III-IV), compared to 19 EAOC cases and 284
+non-EAOC cases in the Early stage (I-II). Pearson's Chi-squared test
+with Yates' continuity correction yields $\chi^2 = 82.873$
+($df = 1, p < 2.2 \times 10^{-16}$). Yates' Continuity Correction
+applied specifically to $2 \times 2$ contingency tables, this correction
+subtracts $0.5$ from the absolute difference between observed and
+expected frequencies ($\vert{}O - E\vert{} - 0.5$). It adjusts for
+approximating a discrete binomial distribution with a continuous
+Chi-squared distribution, yielding a more conservative $p$-value to
+prevent Type I error (false positives). R displays a warning
+("Chi-squared approximation may be incorrect") because one cell in the
+$2 \times 2$ table has an observed frequency of $0$ (Advanced non-EAOC),
+leading to low expected frequencies in that cell. Despite the
+statistical warning, the association between advanced stage disease and
+malignant EAOC status remains extremely strong ($p < 0.001$). $100\%$ of
+patients presenting with advanced disease (III-IV) belong to the EAOC
+malignant group, reinforcing that advanced clinical stages represent a
+severe, high-risk phenotypes.
+
+------------------------------------------------------------------------
+
+## Final Comment for Question 1
+
+This multi-step biostatistical analysis provides key insights into risk
+stratification for Endometriosis-Associated Ovarian Cancer (EAOC):
+
+-   Clinical Staging and Malignancy: disease stage shows an
+    exceptionally strong association with diagnosis status
+    ($p < 0.001$). Early stages (I-II) are predominantly composed of
+    benign endometriosis and atypical lesions, whereas advanced stages
+    (III-IV) consist exclusively of EAOC cases.
+
+-   Methodological Considerations: standard logistic regression models
+    encounter quasi-complete separation due to zero control cases in
+    advanced stages. Grouping stages into binary categories (early vs
+    advanced) and applying Yates' continuity correction
+    ($\chi^2 = 82.873, p < 2.2 \times 10^{-16}$) resolves estimation
+    issues while confirming a statistically significant risk shift
+    toward malignancy in advanced stages.
+
+-   Genomic Biomarkers: isolated copy number loss of the DVL1 gene
+    showed no statistically significant association with diagnostic
+    groups ($p = 0.4905$). This indicates that DVL1 CNV loss alone is
+    insufficient as a standalone biomarker for EAOC transformation and
+    must be analyzed alongside broader multi-omic profiles.
+
+<br><br>
+
+------------------------------------------------------------------------
+
+# Question 2
+
+## Assigned Exercise
+
+> Build prognostic models for overall survival in patients affected by
+> endometriosis and endometriosis-associated ovarian cancer using Cox
+> regression.
+
+1.  Fit a multivariable Cox proportional hazards model including
+    clinical predictors such as age at diagnosis, ethnicity, diagnosis
+    group (Endometriosis, Atypical endometriosis, EAOC), and relevant
+    disease characteristics (bilateral disease). Estimate hazard ratios
+    for each prognostic factor.
+
+2.  Test the proportional hazards assumption using Schoenfeld residuals
+    or other graphical diagnostics, clearly justifying your choice.
+
+3.  Based on the proportional hazards assumption results, extend the Cox
+    model by introducing a stratification according to bilateral disease
+    showing evidence of non-proportional / proportional hazards.
+    Interpret the results and compare them with the standard Cox model.
+
+4.  Visualize the effect of prognostic factors using adjusted survival
+    curves.
+
+------------------------------------------------------------------------
+
+## Step 1
+
+```{r}
+# Fit Multivariable Cox Proportional Hazards Model
+# Time variable: time_years, Event variable: status (0=alive/censored, 1=death)
+cox_model <- coxph( Surv(time_years, status) ~ age + factor(ethnicity) + factor(family_history) + BMI + factor(diagnosis_group) + factor(bilateral_disease), 
+  data = endometriosis_copy)
+
+# Summary of Cox Model to extract Hazard Ratios (HR) and 95% Confidence Intervals
+summary(cox_model)
+```
+
+### Interpretation
+
+The multivariable Cox proportional hazards model demonstrated robust
+overall statistical significance across all tests: likelihood Ratio test
+($39.32$ on $9\text{ df}, p = 1 \times 10^{-5}$), Wald test ($44.26$ on
+$9\text{ df}, p = 1 \times 10^{-6}$), and Score log-rank test ($52.73$
+on $9\text{ df}, p = 3 \times 10^{-8}$). Incorporating body mass index
+(BMI) improved the model's predictive discrimination, increasing the
+Concordance index ($C$-index) to $0.719$ ($\text{SE} = 0.037$).The
+estimated Hazard Ratios ($\text{HR} = \exp(\beta)$) for all prognostic
+factors are located in the model output under the exp(coef) column, with
+their corresponding $95\%$ confidence intervals provided in the lower
+section under lower .95 and upper .95.
+
+Evaluation of Prognostic Factors:
+
+-   Diagnosis Group (EAOC): EAOC it's a major negative prognostic
+    factor. Patients diagnosed with EAOC exhibited a nearly 3.4-fold
+    higher hazard of death compared to the baseline group of atypical
+    endometriosis. Benign endometriosis showed no significant survival
+    difference relative to baseline ($\text{HR} = 0.95$,
+    $95\%\text{ CI } [0.44, 2.05]$, $p = 0.900$).
+-   Body Mass Index (BMI): BMI emerged as a statistically significant
+    predictor ($\text{HR} = 1.10$, $95\%\text{ CI } [1.03, 1.16]$,
+    $p = 0.00218$). Each 1-unit increase in BMI was associated with a
+    $9.6\%$ incremental increase in mortality hazard, highlighting the
+    adverse prognostic contribution of metabolic factors in this cohort.
+-   Other Clinical Covariates: Age at diagnosis
+    ($\text{HR} = 1.02, p = 0.177$), family history of cancer
+    ($\text{HR} = 0.88, p = 0.681$), presence of bilateral disease
+    ($\text{HR} = 0.71, p = 0.255$), and ethnic subgroups ($p > 0.05$
+    across all levels relative to Asian baseline) did not show
+    statistically significant associations with overall survival.
+
+------------------------------------------------------------------------
+
+## Step 2
+
+```{r}
+# Test Proportional Hazards (PH) Assumption using Schoenfeld Residuals
+ph_test <- cox.zph(cox_model)
+print(ph_test)
+
+# Plot Schoenfeld Residuals for graphical diagnosis
+ggcoxzph(ph_test)
+```
+
+### Interpretation
+
+The global Schoenfeld test yields a $p$-value of $0.4777$, indicating
+that the model as a whole does not exhibit severe global
+non-proportionality.
+
+Most predictors satisfy the proportional hazards (PH) assumption: age
+($p = 0.8017$), ethnicity ($p = 0.6045$), BMI ($p = 0.6981$),
+diagnosis_group ($p = 0.8737$), and bilateral_disease ($p = 0.2466$).
+
+Violation Detected: The covariate family_history displays a
+statistically significant violation of the proportional hazards
+assumption ($p = 0.0447$). The residual plot reveals a time-dependent
+regression coefficient ($\beta(t)$), where the effect of family history
+varies over follow-up duration.
+
+Visual inspection of the Schoenfeld residual plots confirms that while
+primary clinical predictors (such as diagnosis_group and BMI) show flat
+horizontal smoothing curves ($\beta(t) \approx \text{constant}$),
+family_history and bilateral_disease display subtle non-linear
+trajectories over time. Detecting non-proportional hazards in background
+clinical covariates justifies extending the standard multivariable Cox
+framework to a stratified Cox model in Step 3. Stratifying by disease
+characteristics (bilateral_disease) accounts for underlying baseline
+hazard heterogeneity across subgroups, ensuring unbiased and stable
+Hazard Ratio estimates for key predictors.
+
+------------------------------------------------------------------------
+
+## Step 3
+
+```{r}
+# Fit Stratified Cox Proportional Hazards Model by bilateral_disease
+strat_cox_model <- coxph(
+  Surv(time_years, status) ~ age + factor(ethnicity) + factor(diagnosis_group) + 
+    factor(family_history) + BMI + strata(bilateral_disease), 
+  data = endometriosis_copy
+)
+
+# Summary of Stratified Cox Model
+summary(strat_cox_model)
+
+# Survival curves by stratification variable (bilateral_disease)
+fit_strat <- survfit(strat_cox_model)
+
+# Graphical visualization of the two strata baseline curves
+ggsurvplot(
+  fit_strat,
+  data = endometriosis_copy,
+  conf.int = FALSE,
+  legend.title = "Bilateral Disease",
+  legend.labs = c("No (0)", "Yes (1)"),
+  xlab = "Time (years)",
+  ylab = "Survival Probability",
+  ggtheme = theme_minimal(),
+  title = "Baseline Survival Probabilities Stratified by Bilateral Disease"
+)
+# Likelihood Ratio / AIC comparison between models
+#Akaike Information Criterion (AIC) is a statistical metric used to compare and select the best model among a set of candidates applied to the same dataset (Lower is Better)
+AIC(cox_model, strat_cox_model)
+```
+
+### Interpretation
+
+Stratifying by bilateral_disease allows the baseline hazard function
+$\lambda_0(t)$ to vary freely across strata while estimating shared
+regression coefficients for the remaining covariates. The overall
+stratified specification is highly significant ($p = 5 \times 10^{-6}$
+on Likelihood Ratio test) with a Concordance index of $C = 0.698$
+($\text{SE} = 0.043$).
+
+Prognostic Factor Estimates:
+
+-   Diagnosis Group (EAOC): confirmed as a primary independent risk
+    factor. Patients with EAOC exhibit a statistically significant
+    $3.24$-fold increase in mortality hazard relative to atypical
+    endometriosis ($\text{HR} = 3.24$, $95\%\text{ CI } [1.47, 7.11]$,
+    $p = 0.00342$).
+
+-   Body Mass Index (BMI): Maintains independent prognostic significance
+    ($\text{HR} = 1.09$, $95\%\text{ CI } [1.03, 1.16]$, $p = 0.00377$),
+    indicating a $9.1\%$ relative increase in mortality risk per unit
+    increase in BMI.
+
+-   Other Covariates: Age ($\text{HR} = 1.02, p = 0.291$), family
+    history ($\text{HR} = 0.95, p = 0.877$), benign endometriosis
+    ($\text{HR} = 0.84, p = 0.651$), and ethnicity categories
+    ($p > 0.05$ across all levels relative to Asian baseline) show no
+    statistically significant associations with overall survival.
+
+Graphical Diagnosis of Stratified Strata: The baseline survival curves
+for bilateral disease strata ($0 = \text{Unilateral}$,
+$1 = \text{Bilateral}$) exhibit clear temporal divergence, intersecting
+around 6–7 years before dropping sharply for the unilateral cohort after
+year 9. This crossing of survival trajectories visually confirms
+non-proportional hazard behavior between disease extent groups. Allowing
+separate stratum-specific baseline hazard functions ($\lambda_{0s}(t)$)
+resolves this baseline hazard heterogeneity, directly driving the
+substantial model fit improvement ($\Delta\text{AIC} = 76.26$) and
+ensuring unbiased hazard ratio estimates for key predictors like EAOC
+status and BMI.\*
+
+------------------------------------------------------------------------
+
+## Step 4
+
+```{r}
+# Adjusted Survival Curves for BMI
+
+library(survminer)
+library(ggplot2)
+
+# Define baseline hypothetical profiles for BMI strata (20, 25, 30)
+bmi_df <- data.frame(
+  BMI = c(20, 25, 30),
+  age = median(endometriosis_copy$age, na.rm = TRUE),
+  ethnicity = factor(levels(factor(endometriosis_copy$ethnicity))[1], 
+                     levels = levels(factor(endometriosis_copy$ethnicity))),
+  diagnosis_group = factor(levels(factor(endometriosis_copy$diagnosis_group))[1], 
+                           levels = levels(factor(endometriosis_copy$diagnosis_group))),
+  family_history = factor(0, levels = levels(factor(endometriosis_copy$family_history))),
+  bilateral_disease = factor(0, levels = levels(factor(endometriosis_copy$bilateral_disease)))
+)
+
+# Estimate adjusted survival curves from the multivariable Cox model
+fit_bmi <- survfit(cox_model, newdata = bmi_df)
+
+# Render adjusted survival plot for BMI profiles
+p_bmi <- ggsurvplot(
+  fit_bmi,
+  data = endometriosis_copy,
+  conf.int = FALSE,
+  palette = c("#2ecc71", "#e67e22", "#e74c3c"),
+  legend.title = "BMI Profile",
+  legend.labs = c("BMI = 20", "BMI = 25", "BMI = 30"),
+  xlab = "Time (years)",
+  ylab = "Survival Probability",
+  ggtheme = theme_minimal(),
+  title = "Adjusted Survival Curves by BMI Profiles"
+)
+
+p_bmi
+```
+
+```{r}
+
+#Adjusted Survival Curves for Diagnosis Group
+
+# Define baseline hypothetical profiles for Diagnosis Group levels
+diag_df <- data.frame(
+  diagnosis_group = factor(levels(factor(endometriosis_copy$diagnosis_group)), 
+                           levels = levels(factor(endometriosis_copy$diagnosis_group))),
+  age = median(endometriosis_copy$age, na.rm = TRUE),
+  ethnicity = factor(levels(factor(endometriosis_copy$ethnicity))[1], 
+                     levels = levels(factor(endometriosis_copy$ethnicity))),
+  family_history = factor(0, levels = levels(factor(endometriosis_copy$family_history))),
+  bilateral_disease = factor(0, levels = levels(factor(endometriosis_copy$bilateral_disease))),
+  BMI = median(endometriosis_copy$BMI, na.rm = TRUE)
+)
+
+# Estimate adjusted survival curves from the multivariable Cox model
+fit_diag <- survfit(cox_model, newdata = diag_df)
+
+# Render adjusted survival plot for Diagnosis Groups
+p_diag <- ggsurvplot(
+  fit_diag,
+  data = endometriosis_copy,
+  conf.int = FALSE,
+  palette = c("#3498db", "#9b59b6", "#c0392b"),
+  legend.title = "Diagnosis",
+  legend.labs = levels(factor(endometriosis_copy$diagnosis_group)),
+  xlab = "Time (years)",
+  ylab = "Survival Probability",
+  ggtheme = theme_minimal(),
+  title = "Adjusted Survival Curves by Diagnosis Group"
+)
+
+p_diag
+```
+
+### Interpretation
+
+To evaluate the isolated prognostic impact of primary risk factors while
+controlling for baseline confounding, adjusted survival probability
+curves were generated for target clinical profiles using the fitted
+multivariable Cox model (survfit with newdata). Confounding background
+covariates were fixed at their sample medians (for continuous variables)
+or reference baseline categories (for factor variables).
+
+-   Body Mass Index (BMI) Risk Gradient: the adjusted survival curves
+    across distinct BMI strata ($\text{BMI} = 20$, $25$, and $30$)
+    demonstrate a clear, monotonic dose-response relationship over time.
+    Higher baseline BMI profiles consistently shift the survival curve
+    downward: at 5 years, survival probability drops from approximately
+    $92\%$ for normal weight ($\text{BMI} = 20$) to nearly $75\%$ for
+    obese profiles ($\text{BMI} = 30$), reaching an even wider gap at 10
+    years ($\sim 60\%$ vs $\sim 30\%$). This visually confirms the
+    significant incremental hazard ($\text{HR} = 1.096$ per BMI unit,
+    $p = 0.00218$) identified in the multivariable model.
+
+-   Diagnosis group: the adjusted survival curves illustrate a
+    pronounced survival disadvantage for patients diagnosed with EAOC
+    (purple curve). While benign endometriosis (red curve) and atypical
+    endometriosis (blue curve) exhibit virtually overlapping, favorable
+    survival trajectories ($\sim 85\%$ survival at 5 years and
+    $\sim 50\%$ at 10 years), the EAOC trajectory declines sharply,
+    dropping to $\sim 60\%$ at 5 years and falling below $15\%$ at 10
+    years. This visual separation aligns with the $3.39$-fold mortality
+    hazard increase ($\text{HR} = 3.39, p = 0.00205$) observed for EAOC,
+    while confirming no distinct risk difference between benign and
+    atypical endometriosis ($\text{HR} = 0.95, p = 0.900$).
+
+## Final Comment for Question 2
+
+This multivariable survival analysis evaluated the prognostic drivers of
+overall mortality in patients with endometriosis and associated ovarian
+cancers (EAOC), while addressing model assumptions through advanced
+stratification techniques. Multivariable Cox regression identified EAOC
+diagnosis and Body Mass Index (BMI) as the primary independent
+predictors of overall mortality. Age, family history, and ethnic
+subgroups demonstrated no statistically significant association with
+overall survival.
+
+Initial proportional hazard diagnostics revealed temporal
+non-proportionality. Extending the model to a stratified Cox framework
+by bilateral_disease allowed stratum-specific baseline hazard functions
+$\lambda_{0s}(t)$ while preserving common hazard ratios for remaining
+covariates. Although this adaptation slightly reduced the apparent
+concordance index ($C = 0.698$ vs $0.721$), it yielded a massive
+goodness-of-fit improvement, reducing the Akaike Information Criterion.
+Adjusted survival probability profiles (survfit with target newdata)
+visually isolated the long-term impact of key predictors. The adjusted
+curves demonstrate a severe, continuous survival drop for the EAOC
+cohort and a clear dose-response risk gradient across BMI strata.
+
+In conclusion, the stratified Cox proportional hazards model provides a
+robust, methodologically sound framework for survival prediction in this
+population. These findings underscore the critical need for early
+oncological monitoring upon malignant transformation to EAOC and
+highlight metabolic control (BMI management) as a key targeted strategy
+in long-term patient care.
+
+<br><br>
+
+------------------------------------------------------------------------
